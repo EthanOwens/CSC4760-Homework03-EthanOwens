@@ -1,0 +1,66 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
+#include <Kokkos_Core.hpp>
+
+using namespace std;
+
+int main(int argc, char *argv[]) {
+    MPI_Init(&argc, &argv);
+    Kokkos::initialize(argc, argv);
+
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    int P = 1, Q = 1, M = 1;
+
+    //P*Q must equal world size
+    if(size != P * Q){
+        printf("Error: Number of processes must be equal to P * Q\n");
+        MPI_Finalize();
+        Kokkos::finalize();
+        return 0;
+    }
+
+    int row = rankk / Q;
+    int col = rank % Q;
+
+    Kokkos::View<int*> vector_x("vx", M);
+
+    if(rank == 0){
+        Kokkos::parallel_for("fill x", M, KOKKOS_LAMBDA(int i){
+            vector_x(i) = i;
+        });
+    }
+
+    Kokkos::View<int*> local_x("local_x", M / P);
+    Kokkos::View<int*> temp_x = Kokkos::subview(vector_x, Kokkos::ALL, Kokkos::subview::range(0, M / P));
+    Kokkos::deep_copy(local_x, temp_x);
+    
+    MPI_Scatter(local_x.data(), M / P, MPI_INT, local_x.data(), M / P, MPI_INT, 0, MPI_COMM_WORLD);
+
+    MPI_Bcast(local_x.data(), M / P, MPI_INT, col, MPI_COMM_WORLD);
+
+    Kokkos::View<int*> vector_y("vy", M);
+
+    Kokkos::parallel_for("copy_y", M, KOKKOS_LAMBDA(int i) {
+        vector_y(i) = local_x(i % (M / P));
+    });
+
+    Kokkos::fence();
+
+    Kokkos::parallel_for("print y", M, KOKKOS_LAMBDA(int i) {
+        if (i == 0) {
+            cout << "Process " << rank << " has y = ";
+        }
+        cout << vector_y(i);
+        if (i == M - 1) {
+            cout << endl;
+        }
+    });
+
+    
+    MPI_Finalize();
+    Kokkos::finalize();
+}
