@@ -1,3 +1,5 @@
+//NOTE: Pieces of code that were added are tagged with "//ADDED CODE BLOCK"
+
 using namespace std;
 #include <iostream>
 #include <assert.h>
@@ -40,6 +42,8 @@ protected:
 
   string name;
 };
+
+
 
 // more forward declarations:
 void zero_domain  (Domain &domain); // zeros the halos too.
@@ -353,6 +357,29 @@ inline char update_the_cell(char cell, int neighbor_count) //Life cellular a rul
 #endif
   return newcell;
 }
+
+//ADDED CODE BLOCK
+struct kernel_update {
+	Domain new_domain;
+	Domain old_domain;
+
+	kernel_update(Domain new_dom, Domain old_dom) : new_domain(new_dom), old_domain(old_dom) {}
+
+	KOKKOS_INLINE_FUNCTION
+	void operator()(int idx){
+		int i = idx / new_domain.cols();
+		int j = idx % new_domain.cols();
+
+		int neighbor_count = 
+			old_domain(row - 1, col - 1) + old_domain(row - 1, col) + old_domain(row - 1, col + 1) + 
+			old_domain(row, col - 1) + 0 + old_domain(row, col + 1) +
+            old_domain(row + 1, col - 1) + old_domain(row + 1, col) + old_domain(row + 1, col + 1);
+
+		new_domain(row, col) = update_the_cell(old_domain(i, j), neighbor_count);
+	}
+};
+
+//ENED ADDED CODE BLOCK
       
 void update_domain(Domain &new_domain, Domain &old_domain, Process_2DGrid &grid)
 {
@@ -442,16 +469,11 @@ void update_domain(Domain &new_domain, Domain &old_domain, Process_2DGrid &grid)
   // we can compute on the interior of old_domain.
 
   // the entirety of the domain is computed so {replace with Kokkos kernel for HW#3}
-  for(int i = 0; i < m ; ++i)
-    for(int j = 0; j < n; ++j)
-    {
-      int neighbor_count =
-         old_domain(i-1,j-1)+old_domain(i-1,j)+old_domain(i-1,j+1)
-	+old_domain(i,  j-1)+0                +old_domain(i,  j+1)
-	+old_domain(i+1,j-1)+old_domain(i+1,j)+old_domain(i+1,j+1);
-      
-      new_domain(i,j) = update_the_cell(old_domain(i,j), neighbor_count);
-    } // end for(j...) for(i...)
+  //ADDED COBE BLOCK
+	int domain_size = new_domain.rows() * new_domain.cols();
+	Kokkos::parallel_for(domain_size, kernel_update(new_domain, old_domain));
+	Kokkos::fence();
+  //ENED ADDED CODE BLOCK
 
   // remember, in a performant code, we would encapsulate the
   // dynamic memory allocation once level higher in the code...
