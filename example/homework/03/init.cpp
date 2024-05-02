@@ -1,9 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <mpi.h>
 #include <Kokkos_Core.hpp>
-
-using namespace std;
+#include <mpi.h>
+#include <cstdio>
 
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
@@ -61,11 +58,11 @@ int main(int argc, char *argv[]) {
 
     Kokkos::parallel_for("print y", M, KOKKOS_LAMBDA(int i) {
         if (i == 0) {
-            cout << "Process " << rank << " has y = ";
+            printf("Process %d has y =", rank);
         }
         cout << vector_y(i);
         if (i == M - 1) {
-            cout << endl;
+            printf("\n");
         }
     });
     Kokkos::fence();
