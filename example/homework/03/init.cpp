@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int P = 1, Q = 1, M = 1;
+    int P = 1, Q = 2, M = 3;
 
     //P*Q must equal world size
     if(size != P * Q){
@@ -26,6 +26,13 @@ int main(int argc, char *argv[]) {
     int row = rankk / Q;
     int col = rank % Q;
 
+    int global_J = rank;
+
+    int j = global_J / Q;
+    int q = global_J % Q;
+
+    int ele_per_proc = M / Q;
+
     Kokkos::View<int*> vector_x("vx", M);
 
     if(rank == 0){
@@ -33,6 +40,7 @@ int main(int argc, char *argv[]) {
             vector_x(i) = i;
         });
     }
+    Kokkos::fence();
 
     Kokkos::View<int*> local_x("local_x", M / P);
     Kokkos::View<int*> temp_x = Kokkos::subview(vector_x, Kokkos::ALL, Kokkos::subview::range(0, M / P));
@@ -43,9 +51,10 @@ int main(int argc, char *argv[]) {
     MPI_Bcast(local_x.data(), M / P, MPI_INT, col, MPI_COMM_WORLD);
 
     Kokkos::View<int*> vector_y("vy", M);
+    Kokkos::View<int*> sub_vector_y = Kokkos::subview(vector_y, Kokkos::ALL, Kokkos::subview::range(0, ele_per_proc));
 
-    Kokkos::parallel_for("copy_y", M, KOKKOS_LAMBDA(int i) {
-        vector_y(i) = local_x(i % (M / P));
+    Kokkos::parallel_for("copy_y", ele_per_proc, KOKKOS_LAMBDA(int i) {
+        sub_vector_y(i) = local_x(i);
     });
 
     Kokkos::fence();
@@ -59,6 +68,7 @@ int main(int argc, char *argv[]) {
             cout << endl;
         }
     });
+    Kokkos::fence();
 
     
     MPI_Finalize();

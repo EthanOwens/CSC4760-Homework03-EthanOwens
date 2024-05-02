@@ -33,11 +33,12 @@ int main(int argc, char *argv[]) {
             vector_x(i) = i;
         });
     }
+    Kokkos::fence();
 
     Kokkos::View<int*> local_x("local_x", M / P);
     Kokkos::View<int*> temp_x = Kokkos::subview(vector_x, Kokkos::ALL, Kokkos::subview::range(0, M / P));
     Kokkos::deep_copy(local_x, temp_x);
-    
+
     MPI_Scatter(local_x.data(), M / P, MPI_INT, local_x.data(), M / P, MPI_INT, 0, MPI_COMM_WORLD);
 
     MPI_Bcast(local_x.data(), M / P, MPI_INT, col, MPI_COMM_WORLD);
@@ -59,6 +60,7 @@ int main(int argc, char *argv[]) {
             cout << endl;
         }
     });
+    Kokkos::fence();
 
     
     MPI_Finalize();
